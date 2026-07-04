@@ -11,7 +11,7 @@ and coding agents.
 
 | File | Role |
 |---|---|
-| [ultrastar_parse.py](ultrastar_parse.py) | Pure-Python UltraStar `.txt` parser: headers, notes, line breaks, duets, `#RELATIVE`, encodings, melisma, octave folding |
+| [ultrastar_parse.py](ultrastar_parse.py) | Pure-Python UltraStar `.txt` parser: headers, notes, line breaks, duets (parsed fully; conversion uses only P1 — feedpak v1 has a single `vocal_pitch`), `#RELATIVE`, encodings, melisma, octave folding |
 | [convert.py](convert.py) | Song folder → `.feedpak`: manifest, `lyrics.json`, `vocal_pitch.json`, `notation_vocals.json`, ffmpeg-transcoded stem, cover. Also a CLI |
 | [merge.py](merge.py) | Graft vocals into an existing pak of the same recording: onset-envelope cross-correlation, piecewise offset map, accept/review/refuse gating, backup/restore. Also a CLI (needs numpy) |
 | [routes.py](routes.py) | Plugin backend (`setup(app, context)`): scan a songs folder, batch import over a websocket, merge-with-fallback, backup management endpoints |

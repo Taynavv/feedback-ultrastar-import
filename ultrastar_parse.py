@@ -13,7 +13,9 @@ Format notes (the gotchas below all occur in real-world chart libraries):
   quarter-beats and #BPM is ~4x the musical BPM.
 - Decimal commas (``#BPM:395,98``) and mixed CP1252/UTF-8 encodings are common.
 - A syllable text of ``~`` continues the previous syllable at a new pitch (melisma).
-- ``P1``/``P2`` markers introduce duet parts (``P3`` means both singers).
+- ``P1``/``P2`` markers introduce duet parts (``P3`` means both singers). The
+  parser keeps every player's part; downstream conversion currently imports only
+  player 1 (P3 lines count as part of P1), so P2-only content is dropped there.
 """
 from __future__ import annotations
 

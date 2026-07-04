@@ -28,8 +28,9 @@ sing them.
   it. The plugin screen lists all backups with per-pak Restore (undo the merge) and
   Delete, so cleanup is always your call.
 - **Robust parsing** — comma decimals, BOM/`#ENCODING`/CP1252 fallback, `#RELATIVE`
-  charts, melisma continuations, `P1/P2/P3` duet markers, octave-sloppy pitch data
-  (folded into a plausible vocal register), audio referenced via video files.
+  charts, melisma continuations, `P1/P2/P3` duet markers (only P1's part is
+  imported; P2-only lines are dropped), octave-sloppy pitch data (folded into a
+  plausible vocal register), audio referenced via video files.
 
 ## Requirements
 
