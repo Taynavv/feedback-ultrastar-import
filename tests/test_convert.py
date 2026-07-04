@@ -139,7 +139,7 @@ def test_language_tag():
 
 def test_fallback_title_artist():
     song = parse_text("#BPM:400\n#GAP:0\n: 0 2 0 x\nE\n")
-    chart = Path(r"C:\songs\Some Artist - Some Title\Some Artist - Some Title.txt")
+    chart = Path("songs") / "Some Artist - Some Title" / "Some Artist - Some Title.txt"
     title, artist = fallback_title_artist(chart, song)
     assert title == "Some Title"
     assert artist == "Some Artist"
