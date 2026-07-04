@@ -1,0 +1,66 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
+
+      - name: Install Python deps
+        run: pip install pytest pyyaml jsonschema numpy
+
+      - uses: actions/checkout@v5
+        with:
+          repository: got-feedback/feedpak-spec
+          ref: v1.14.0
+          path: feedpak-spec
+
+      - name: Run tests
+        env:
+          FEEDPAK_SPEC_DIR: ${{ github.workspace }}/feedpak-spec
+        run: pytest tests/ -v
+
+      - name: Check tag matches plugin.json version
+        run: |
+          python - <<'EOF'
+          import json, os, sys
+          tag = os.environ["GITHUB_REF_NAME"].lstrip("v")
+          ver = json.load(open("plugin.json"))["version"]
+          if tag != ver:
+              sys.exit(f"tag v{tag} != plugin.json version {ver} — bump plugin.json before tagging")
+          EOF
+
+      - name: Build plugin zip
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          mkdir -p "dist/feedback-ultrastar-import"
+          cp plugin.json routes.py screen.html screen.js convert.py ultrastar_parse.py \
+             merge.py requirements.txt README.md LICENSE \
+             "dist/feedback-ultrastar-import/"
+          cd dist
+          zip -r "feedback-ultrastar-import-${VERSION}.zip" feedback-ultrastar-import
+          unzip -l "feedback-ultrastar-import-${VERSION}.zip"
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          gh release create "$GITHUB_REF_NAME" \
+            "dist/feedback-ultrastar-import-${VERSION}.zip" \
+            --title "feedback-ultrastar-import ${GITHUB_REF_NAME}" \
+            --generate-notes

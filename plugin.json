@@ -1,0 +1,16 @@
+{
+  "id": "ultrastar_import",
+  "name": "Import UltraStar",
+  "version": "0.1.0",
+  "feedback_target": "0.3.0-alpha.1",
+  "private": false,
+  "description": "Import UltraStar karaoke songs as feedpaks with a playable Vocals arrangement, synced lyrics, and per-syllable pitch.",
+  "nav": {
+    "label": "Import UltraStar",
+    "screen": "plugin-ultrastar_import"
+  },
+  "screen": "screen.html",
+  "script": "screen.js",
+  "routes": "routes.py",
+  "category": "tools"
+}

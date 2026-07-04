@@ -1,0 +1,17 @@
+# never commit song content or generated paks
+*.feedpak
+*.sloppak
+*.mp3
+*.ogg
+*.avi
+*.mp4
+test-output/
+
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+
+# machine-local agent config and permission grants — never publishable
+.claude/settings.local.json
+CLAUDE.local.md
