@@ -30,7 +30,8 @@ sing them.
 - **Robust parsing** — comma decimals, BOM/`#ENCODING`/CP1252 fallback, `#RELATIVE`
   charts, melisma continuations, `P1/P2/P3` duet markers (only P1's part is
   imported; P2-only lines are dropped), octave-sloppy pitch data (folded into a
-  plausible vocal register), audio referenced via video files.
+  plausible vocal register), and audio located via the `#AUDIO`/`#MP3`/`#VIDEO`
+  headers or any common audio/video container (the video track is dropped).
 
 ## Requirements
 

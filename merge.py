@@ -38,6 +38,7 @@ from convert import (  # noqa: E402
     build_lyrics,
     build_notation,
     build_vocal_pitch,
+    find_audio,
     find_tool,
     language_tag,
     pick_chart,
@@ -367,13 +368,9 @@ def analyze(song_dir: Path, pak: Path, log=print) -> tuple[MergeReport, object, 
     for w in song.warnings:
         log(f"  chart warning: {w}")
 
-    mp3_name = song.headers.get("MP3", "").strip()
-    audio = song_dir / mp3_name if mp3_name else None
-    if not audio or not audio.is_file():
-        cands = sorted(song_dir.glob("*.mp3"))
-        if not cands:
-            raise MergeError(f"no audio in {song_dir.name} to correlate")
-        audio = cands[0]
+    audio = find_audio(song_dir, song.headers)
+    if audio is None:
+        raise MergeError(f"no audio in {song_dir.name} to correlate")
 
     with tempfile.TemporaryDirectory(prefix="usmerge_") as td:
         stem_file, stem_id = extract_stem(pak, Path(td))

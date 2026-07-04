@@ -27,7 +27,7 @@ _HERE = Path(__file__).resolve().parent
 if str(_HERE) not in sys.path:
     sys.path.insert(0, str(_HERE))
 
-from convert import ConvertError, convert, find_tool, pick_chart  # noqa: E402
+from convert import ConvertError, convert, find_audio, find_tool, pick_chart  # noqa: E402
 from ultrastar_parse import parse_file  # noqa: E402
 
 # merge.py needs numpy (auto-installed from requirements.txt by the plugin
@@ -42,8 +42,8 @@ _meta_db = None
 _log = None
 _config_dir: Path | None = None
 
-# job token -> (root dir, [folder names], created-at monotonic)
-_jobs: dict[str, tuple[Path, list[str], float]] = {}
+# job token -> (root dir, [folder names], merge-enabled, created-at monotonic)
+_jobs: dict[str, tuple[Path, list[str], bool, float]] = {}
 
 
 def _config_file() -> Path | None:
@@ -147,10 +147,7 @@ def _scan_songs(root: Path) -> dict:
             title = song.title or folder.name
             artist = song.artist or ""
             name = _out_name(title, artist)
-            has_audio = bool(
-                sorted(folder.glob("*.mp3"))
-                or (song.headers.get("MP3") and (folder / song.headers["MP3"].strip()).is_file())
-            )
+            has_audio = find_audio(folder, song.headers) is not None
             cand = _find_candidate(paks, artist, title)
             songs.append({
                 "folder": folder.name,

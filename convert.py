@@ -86,6 +86,37 @@ def pick_chart(source: Path) -> Path:
     return charts[0]
 
 
+# Any container ffmpeg can pull a stem from. Dedicated audio formats rank before
+# video: some charts ship audio only inside the #VIDEO clip, and transcode drops
+# the video track with -vn.
+AUDIO_EXTS = (".mp3", ".ogg", ".opus", ".m4a", ".aac", ".wav", ".flac",
+              ".mp4", ".webm", ".mkv", ".avi", ".mov")
+
+
+def find_audio(song_dir: Path, headers: dict[str, str]) -> Path | None:
+    """Resolve a song folder's audio source.
+
+    Honors #AUDIO (modern UltraStar), then #MP3 (legacy), then #VIDEO; otherwise
+    falls back to the first file (case-insensitively) with a known audio/video
+    extension, preferring dedicated audio over video. Returns None when nothing
+    usable is present.
+    """
+    for key in ("AUDIO", "MP3", "VIDEO"):
+        name = headers.get(key, "").strip()
+        if name:
+            cand = song_dir / name
+            if cand.is_file():
+                return cand
+    by_ext: dict[str, list[Path]] = {}
+    for p in sorted(song_dir.iterdir()):
+        if p.is_file():
+            by_ext.setdefault(p.suffix.lower(), []).append(p)
+    for ext in AUDIO_EXTS:
+        if by_ext.get(ext):
+            return by_ext[ext][0]
+    return None
+
+
 def language_tag(headers: dict[str, str]) -> str | None:
     raw = headers.get("LANGUAGE", "").strip()
     if not raw:
@@ -186,7 +217,7 @@ def build_notation(song: Song, lines: list[Line], t0_offset: float = 0.0) -> dic
     """notation_vocals.json: one G2 staff, one monophonic voice, 4/4 grid.
 
     The measure grid runs at the chart's musical tempo (header BPM halved into a
-    60–200 display range) starting at the GAP; notes land in the measure containing
+    60–180 display range) starting at the GAP; notes land in the measure containing
     their onset. Durations are quantized to the nearest plain/dotted value.
     `t0_offset` shifts the grid origin — used by merge mode, where all note times
     have been moved onto the target pak's audio timeline.
@@ -274,13 +305,9 @@ def convert(source: Path, out_path: Path, keep_dir: bool = False,
     if song.is_duet:
         log("  duet chart: importing player 1 only (v1)")
 
-    mp3_name = song.headers.get("MP3", "").strip()
-    audio = song_dir / mp3_name if mp3_name else None
-    if not audio or not audio.is_file():
-        cands = sorted(song_dir.glob("*.mp3"))
-        if not cands:
-            raise ConvertError(f"no audio file for {song_dir.name}")
-        audio = cands[0]
+    audio = find_audio(song_dir, song.headers)
+    if audio is None:
+        raise ConvertError(f"no audio file for {song_dir.name}")
 
     lines = merge_melisma(song.lines)
     lyrics = build_lyrics(lines)

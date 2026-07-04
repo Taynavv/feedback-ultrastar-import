@@ -12,6 +12,7 @@ from convert import (  # noqa: E402
     build_vocal_pitch,
     display_bpm,
     fallback_title_artist,
+    find_audio,
     language_tag,
     pick_chart,
     quantize_dur,
@@ -154,3 +155,45 @@ def test_pick_chart_prefers_solo(tmp_path):
 def test_pick_chart_single(tmp_path):
     (tmp_path / "Only.txt").write_text("x")
     assert pick_chart(tmp_path).name == "Only.txt"
+
+
+def test_find_audio_audio_header_wins(tmp_path):
+    # Modern #AUDIO header takes precedence over a stray mp3 in the folder.
+    (tmp_path / "track.ogg").write_bytes(b"x")
+    (tmp_path / "stray.mp3").write_bytes(b"x")
+    assert find_audio(tmp_path, {"AUDIO": "track.ogg"}).name == "track.ogg"
+
+
+def test_find_audio_mp3_header(tmp_path):
+    (tmp_path / "a.mp3").write_bytes(b"x")
+    assert find_audio(tmp_path, {"MP3": "a.mp3"}).name == "a.mp3"
+
+
+def test_find_audio_globs_non_mp3(tmp_path):
+    # No usable header, only a non-mp3 file — the old *.mp3-only glob missed this.
+    (tmp_path / "song.opus").write_bytes(b"x")
+    assert find_audio(tmp_path, {}).name == "song.opus"
+
+
+def test_find_audio_prefers_audio_over_video(tmp_path):
+    (tmp_path / "clip.mp4").write_bytes(b"x")
+    (tmp_path / "sound.mp3").write_bytes(b"x")
+    assert find_audio(tmp_path, {}).name == "sound.mp3"
+
+
+def test_find_audio_video_fallback(tmp_path):
+    # Audio only inside the video container — still resolvable (transcode drops video).
+    (tmp_path / "movie.mp4").write_bytes(b"x")
+    assert find_audio(tmp_path, {}).name == "movie.mp4"
+
+
+def test_find_audio_none_when_absent(tmp_path):
+    (tmp_path / "song.txt").write_bytes(b"x")
+    (tmp_path / "cover.jpg").write_bytes(b"x")
+    assert find_audio(tmp_path, {}) is None
+
+
+def test_find_audio_missing_header_file_falls_back(tmp_path):
+    # Header names a file that isn't there → fall through to the extension scan.
+    (tmp_path / "real.mp3").write_bytes(b"x")
+    assert find_audio(tmp_path, {"MP3": "ghost.mp3"}).name == "real.mp3"

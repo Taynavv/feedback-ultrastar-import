@@ -49,6 +49,7 @@ setTimeout(() => {
 // ── Scan ──────────────────────────────────────────────────────────────────
 
 async function usScan() {
+    if (_importing) return;   // a rescan mid-import would orphan the live progress state
     const dir = $('us-dir').value.trim();
     if (!dir) { $('us-scan-hint').textContent = 'Enter a folder path first.'; return; }
 
@@ -131,6 +132,12 @@ function usUpdateCount() {
     $('us-selected-count').textContent = n ? `${n} selected` : 'nothing selected';
     $('us-import-btn').classList.toggle('opacity-50', !n || _importing);
     $('us-import-btn').classList.toggle('pointer-events-none', !n || _importing);
+    // Grey out Scan while importing (unless already disabled — e.g. no ffmpeg).
+    const scanBtn = $('us-scan-btn');
+    if (scanBtn && !scanBtn.disabled) {
+        scanBtn.classList.toggle('opacity-50', _importing);
+        scanBtn.classList.toggle('pointer-events-none', _importing);
+    }
 }
 
 function usSelectNew()  { if (!_importing) { _songs.forEach((s) => { s.selected = !s.imported && !s.merged && s.has_audio; }); usRenderList(); } }
@@ -152,6 +159,12 @@ async function usImport() {
     const picked = _songs.filter((s) => s.selected);
     if (!picked.length) return;
 
+    // Claim the run synchronously, before any await — a rapid second click must
+    // not slip past the guard during the import_start round-trip and open a
+    // second job. Two jobs race the same output pak/backup and can corrupt it.
+    _importing = true;
+    usRenderList();
+
     let start;
     try {
         const mergeOn = !!($('us-merge-toggle') && $('us-merge-toggle').checked);
@@ -162,12 +175,18 @@ async function usImport() {
         });
         start = await resp.json();
     } catch (err) {
+        _importing = false;
+        usRenderList();
         $('us-scan-hint').textContent = `Could not start import: ${err}`;
         return;
     }
-    if (start.error) { $('us-scan-hint').textContent = start.error; return; }
+    if (start.error) {
+        _importing = false;
+        usRenderList();
+        $('us-scan-hint').textContent = start.error;
+        return;
+    }
 
-    _importing = true;
     usRenderList();
     $('us-progress').classList.remove('hidden');
     $('us-result').classList.add('hidden');
@@ -178,10 +197,15 @@ async function usImport() {
     const byFolder = Object.fromEntries(_songs.map((s) => [s.folder, s]));
     const ws = new WebSocket(`${WS_BASE}/import?job=${encodeURIComponent(start.job)}`);
 
+    // usFinish must run exactly once: a normal 'done' is followed by a server-side
+    // close, and an abnormal drop can fire both onerror and onclose.
+    let settled = false;
+    const settle = (m) => { if (!settled) { settled = true; usFinish(m); } };
+
     ws.onmessage = (ev) => {
         const msg = JSON.parse(ev.data);
 
-        if (msg.error) { usFinish({ error: msg.error }); return; }
+        if (msg.error) { settle({ error: msg.error }); return; }
 
         if (msg.stage && msg.folder) {
             const s = byFolder[msg.folder];
@@ -211,10 +235,14 @@ async function usImport() {
             usRenderList();
         }
 
-        if (msg.done) usFinish(msg);
+        if (msg.done) settle(msg);
     };
 
-    ws.onerror = () => usFinish({ error: 'Connection lost' });
+    ws.onerror = () => settle({ error: 'Connection lost' });
+    // A clean server close with no 'done'/'error' frame (app shutdown mid-import,
+    // dropped socket) fires only onclose — recover instead of leaving the spinner
+    // stuck and the controls disabled until reload.
+    ws.onclose = () => settle({ error: 'Connection closed before the import finished' });
 }
 
 function usFinish(msg) {
@@ -308,6 +336,7 @@ async function usBakRestore(rel) {
 }
 
 async function usBakDelete(rel) {
+    if (!confirm('Delete this merge backup? The pak keeps its merged vocals — you just lose the ability to undo this merge.')) return;
     const r = await usBakPost('backup_delete', { rel });
     if (r.ok) usLoadBackups();
 }
