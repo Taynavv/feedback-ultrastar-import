@@ -33,7 +33,10 @@ from ultrastar_parse import parse_file  # noqa: E402
 # merge.py needs numpy (auto-installed from requirements.txt by the plugin
 # loader) — imported lazily so a missing dep degrades to import-only.
 
-_OUTPUT_SUBDIR = "sloppack"
+# Imported paks are written under <dlc>/ultrastar_import/ — named by source, like
+# the core's own "starter"/"diagnostics-builtin" subdirs. Discovery is recursive
+# and suffix-based (*.feedpak/*.sloppak), so this folder name is ours to choose.
+_OUTPUT_SUBDIR = "ultrastar_import"
 _JOB_TTL_SECONDS = 3600
 
 _get_dlc_dir = None

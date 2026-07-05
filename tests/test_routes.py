@@ -64,7 +64,7 @@ def _make_pak(path: Path, title: str, has_vocals: bool = False) -> None:
 @pytest.fixture()
 def ctx(tmp_path):
     dlc = tmp_path / "library"
-    (dlc / "sloppack").mkdir(parents=True)
+    (dlc / "ultrastar_import").mkdir(parents=True)
     app = FakeApp()
     db = FakeDB()
     routes.setup(app, {
@@ -86,15 +86,15 @@ BASE = "/api/plugins/ultrastar_import"
 
 def test_backups_list_and_delete(ctx):
     app, db, dlc = ctx
-    pak = dlc / "sloppack" / "Song_Artist.feedpak"
+    pak = dlc / "ultrastar_import" / "Song_Artist.feedpak"
     _make_pak(pak, "Song", has_vocals=True)
-    bak = dlc / "sloppack" / "Song_Artist.feedpak.pre-merge.bak"
+    bak = dlc / "ultrastar_import" / "Song_Artist.feedpak.pre-merge.bak"
     _make_pak(bak, "Song", has_vocals=False)
 
     listing = _call(app.handlers[f"{BASE}/backups"])
     assert len(listing["backups"]) == 1
     b = listing["backups"][0]
-    assert b["rel"] == "sloppack/Song_Artist.feedpak.pre-merge.bak"
+    assert b["rel"] == "ultrastar_import/Song_Artist.feedpak.pre-merge.bak"
     assert b["display"] == "Artist — Song"
     assert listing["total_size"] == bak.stat().st_size
 
@@ -105,24 +105,24 @@ def test_backups_list_and_delete(ctx):
 
 def test_backup_restore(ctx):
     app, db, dlc = ctx
-    pak = dlc / "sloppack" / "Song_Artist.feedpak"
+    pak = dlc / "ultrastar_import" / "Song_Artist.feedpak"
     _make_pak(pak, "Song", has_vocals=True)          # merged state
-    bak = dlc / "sloppack" / "Song_Artist.feedpak.pre-merge.bak"
+    bak = dlc / "ultrastar_import" / "Song_Artist.feedpak.pre-merge.bak"
     _make_pak(bak, "Song", has_vocals=False)         # original state
     original = bak.read_bytes()
 
     res = _call(app.handlers[f"{BASE}/backup_restore"],
-                {"rel": "sloppack/Song_Artist.feedpak.pre-merge.bak"})
+                {"rel": "ultrastar_import/Song_Artist.feedpak.pre-merge.bak"})
     assert res["ok"]
     assert pak.read_bytes() == original              # pak reverted
     assert not bak.exists()                          # backup consumed
-    assert db.puts == ["sloppack/Song_Artist.feedpak"]  # re-indexed
+    assert db.puts == ["ultrastar_import/Song_Artist.feedpak"]  # re-indexed
 
 
 def test_backup_delete_all(ctx):
     app, db, dlc = ctx
     for i in range(3):
-        _make_pak(dlc / "sloppack" / f"S{i}.feedpak.pre-merge.bak", f"S{i}")
+        _make_pak(dlc / "ultrastar_import" / f"S{i}.feedpak.pre-merge.bak", f"S{i}")
     res = _call(app.handlers[f"{BASE}/backup_delete"], {"all": True})
     assert res["ok"] and res["deleted"] == 3
     assert _call(app.handlers[f"{BASE}/backups"])["backups"] == []
@@ -135,8 +135,8 @@ def test_backup_path_safety(ctx, tmp_path):
     evil.write_bytes(b"x")
     for rel in ("../evil.feedpak.pre-merge.bak",
                 "..\\evil.feedpak.pre-merge.bak",
-                "sloppack/nonexistent.feedpak.pre-merge.bak",
-                "sloppack/Song.feedpak"):          # wrong suffix
+                "ultrastar_import/nonexistent.feedpak.pre-merge.bak",
+                "ultrastar_import/Song.feedpak"):          # wrong suffix
         res = _call(app.handlers[f"{BASE}/backup_restore"], {"rel": rel})
         assert res.get("error"), rel
         res = _call(app.handlers[f"{BASE}/backup_delete"], {"rel": rel})

@@ -56,6 +56,11 @@ spec repo's `tools/validate.py`.
 - **Backups are first-merge-wins.** `<pak>.feedpak.pre-merge.bak` is the pak before
   *any* vocal merge; re-merges never overwrite it. Restore consumes it. They never
   expire by policy — disposal is an explicit user action in the UI.
+- **`.sloppak` in the scanners is host-parity, not a stale brand.** FeedBack accepts
+  `.feedpak` *and* legacy `.sloppak` (core `lib/sloppak.py` `SONG_EXTS`); `merge.py`
+  and the backup scan match both so merge finds legacy library paks. Don't reduce them
+  to `.feedpak`-only — that silently skips legacy paks. Only the output *subdir*
+  (`_OUTPUT_SUBDIR = "ultrastar_import"`) is ours to name.
 - **`lyrics_source: authored` is correct per spec** even though current FeedBack
   logs a warning and falls back to its legacy vocabulary — stay spec-conformant.
 - **ffmpeg/ffprobe resolution order**: `FFMPEG_DIR` env → `PATH` → the FeedBack
