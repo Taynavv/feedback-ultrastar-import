@@ -14,9 +14,13 @@ sing them.
   with artist/title/language, skips what you've already imported, and converts the
   rest with per-song progress.
 - **Faithful conversion** — syllable-level lyrics with word-join/line-end markers,
-  per-syllable MIDI pitch, a standard-notation vocals melody, transcoded audio, and
-  cover art, all in spec-conformant feedpak v1.14 packages (golden notes flatten to
-  normal; freestyle/rap keep lyrics without pitch; duets import player 1).
+  per-note MIDI pitch (melisma preserved), a standard-notation vocals melody,
+  transcoded audio, and cover art, all in spec-conformant feedpak v1.14 packages
+  (golden notes flatten to normal; freestyle/rap keep lyrics without pitch).
+- **Multi-voice duets** — every singer is imported as its own voice via a
+  `vocal_tracks` extension (one entry per `P1`/`P2`/… part). The lead is also mirrored
+  to the standard `lyrics`/`vocal_pitch` keys, so native karaoke plays it unchanged and
+  readers that don't know the extension simply ignore the extra voices.
 - **Merge into existing songs** — if the same recording is already in your library
   (say, a guitar chart), the importer grafts the vocal chart *into that pak* instead
   of creating a duplicate. Identity is verified acoustically: onset-envelope
@@ -28,10 +32,10 @@ sing them.
   it. The plugin screen lists all backups with per-pak Restore (undo the merge) and
   Delete, so cleanup is always your call.
 - **Robust parsing** — comma decimals, BOM/`#ENCODING`/CP1252 fallback, `#RELATIVE`
-  charts, melisma continuations, `P1/P2/P3` duet markers (only P1's part is
-  imported; P2-only lines are dropped), octave-sloppy pitch data (folded into a
-  plausible vocal register), and audio located via the `#AUDIO`/`#MP3`/`#VIDEO`
-  headers or any common audio/video container (the video track is dropped).
+  charts, melisma continuations, `P1/P2/P3` duet markers (each singer imported as its
+  own voice), octave-sloppy pitch data (folded into a plausible vocal register), and
+  audio located via the `#AUDIO`/`#MP3`/`#VIDEO` headers or any common audio/video
+  container (the video track is dropped).
 
 ## Requirements
 

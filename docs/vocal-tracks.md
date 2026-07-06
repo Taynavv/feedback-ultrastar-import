@@ -46,10 +46,11 @@ precisely the case §5.5 left open.
 
 **The data exists.** UltraStar duet charts carry exactly this — `P1`/`P2` parts,
 per-syllable pitch and timing, `#DUETSINGERP1/P2` names — and
-[`ultrastar_parse.py`](../ultrastar_parse.py) already parses every player in full.
-Only conversion currently drops all but P1. So the importer is positioned to be
-both the reference **writer** and (with [feedback-vocals-viz](../../feedback-vocals-viz))
-the reference **reader** for this extension, validated against a real corpus.
+[`ultrastar_parse.py`](../ultrastar_parse.py) already parses every player in full,
+and conversion now emits each as a voice under this design (shipped v0.2.0). So the
+importer is the reference **writer**, and (with
+[feedback-vocals-viz](../../feedback-vocals-viz)) the reference **reader** for this
+extension, validated against a real corpus.
 
 **Why not overload an existing field.** §9.4 calls repurposing a field's meaning
 "the most dangerous" change. A new key gated on presence is the safe, spec-blessed
