@@ -20,9 +20,16 @@ and coding agents.
 
 Data shapes follow the
 [feedpak spec](https://github.com/got-feedback/feedpak-spec) v1.14 (§5 manifest,
-§7.1 lyrics, §7.2 vocal_pitch, §7.6 notation). Only existing spec mechanisms are
-used — **no custom manifest keys**; every produced or modified pak must pass the
-spec repo's `tools/validate.py`.
+§7.1 lyrics, §7.2 vocal_pitch, §7.6 notation). Extend the format only by the
+spec's **golden rule** (§9.1) — a new `snake_case` manifest key pointing at a new
+versioned side-file, gated on the key's presence — **never** by overloading or
+repurposing an existing field (§9.4 calls that "the most dangerous" change). The
+manifest schema is `additionalProperties: true`, so a golden-rule extension key
+still passes the spec repo's `tools/validate.py`, which every produced or modified
+pak must. An extension key we author is a plugin-space proving ground for a future
+upstream proposal: document it, mirror an existing spec pattern where one fits
+(e.g. `lyric_tracks`), and keep the equivalent singular/standard keys populated so
+older Readers still work.
 
 ## Load-bearing subtleties — do not "clean up" casually
 

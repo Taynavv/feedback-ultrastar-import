@@ -52,6 +52,27 @@ F 34 4 0  free
 E
 """
 
+DUET_CHART = """\
+#TITLE:Duet Fixture
+#ARTIST:Two Singers
+#LANGUAGE:English
+#DUETSINGERP1:Alice
+#DUETSINGERP2:Bob
+#ALBUM:Together
+#CREATOR:Charter Jane
+#MP3:song.mp3
+#BPM:400
+#GAP:0
+P1
+: 0 4 0 Al
+: 4 4 2 ice
+- 10
+P2
+: 12 4 4 Bob
+: 16 4 5  here
+E
+"""
+
 pytestmark = pytest.mark.skipif(FFMPEG is None, reason="ffmpeg not available")
 
 
@@ -101,10 +122,57 @@ def test_manifest_contents(pak):
     assert "file" not in arr
     assert manifest["lyrics_source"] == "authored"
     # 8 lyric syllables (melisma merged into 'en', freestyle keeps its entry);
-    # 7 pitched vocal_pitch notes (freestyle emits none).
+    # 8 pitched vocal_pitch notes: the '~' melisma keeps its own pitch event
+    # (per-note stream, docs/vocal-tracks.md §4.2); freestyle emits none.
     assert len(lyrics) == 8
-    assert len(vp["notes"]) == 7
+    assert len(vp["notes"]) == 8
     assert [e["w"] for e in lyrics][:3] == ["Syn-", "the-", "tic+"]
+
+
+@pytest.fixture(scope="module")
+def duet_pak(tmp_path_factory):
+    d = tmp_path_factory.mktemp("duet_song")
+    (d / "song.txt").write_text(DUET_CHART, encoding="utf-8")
+    subprocess.run(
+        [FFMPEG, "-y", "-v", "error", "-f", "lavfi",
+         "-i", "sine=frequency=440:duration=10", "-q:a", "4",
+         str(d / "song.mp3")],
+        check=True, capture_output=True)
+    out = tmp_path_factory.mktemp("duet_out") / "duet.feedpak"
+    convert(d, out, log=lambda m: None)
+    return out
+
+
+def test_duet_vocal_tracks(duet_pak):
+    with zipfile.ZipFile(duet_pak) as z:
+        names = set(z.namelist())
+        manifest = yaml.safe_load(z.read("manifest.yaml"))
+    # Per-voice side-files present; the primary voice reuses the singular names.
+    assert {"lyrics.json", "vocal_pitch.json",
+            "lyrics_p2.json", "vocal_pitch_p2.json"} <= names
+    # Metadata that used to be dropped is now mapped.
+    assert manifest["album"] == "Together"
+    assert manifest["authors"] == [{"name": "Charter Jane", "role": "charter"}]
+    # vocal_tracks: two voices, P1 primary + named; singular keys mirror P1.
+    vt = manifest["vocal_tracks"]
+    assert [v["id"] for v in vt] == ["p1", "p2"]
+    assert vt[0].get("primary") is True and "primary" not in vt[1]
+    assert vt[0]["name"] == "Alice" and vt[1]["name"] == "Bob"
+    assert vt[0]["vocal_pitch"] == "vocal_pitch.json"
+    assert vt[1]["vocal_pitch"] == "vocal_pitch_p2.json"
+    assert manifest["lyrics"] == "lyrics.json"
+    assert manifest["vocal_pitch"] == "vocal_pitch.json"
+
+
+@pytest.mark.skipif(
+    not (SPEC_DIR and (SPEC_DIR / "tools" / "validate.py").is_file()),
+    reason="feedpak-spec checkout not available (set FEEDPAK_SPEC_DIR)")
+def test_duet_spec_validator(duet_pak):
+    proc = subprocess.run(
+        [sys.executable, str(SPEC_DIR / "tools" / "validate.py"), str(duet_pak)],
+        capture_output=True, text=True)
+    assert proc.returncode == 0, f"validator failed:\n{proc.stdout}\n{proc.stderr}"
+    assert "PASS" in proc.stdout
 
 
 @pytest.mark.skipif(

@@ -4,16 +4,18 @@ Usage:
     python convert.py <song_dir_or_chart.txt> <out.feedpak> [--keep-dir]
 
 Produces a spec-conformant feedpak (v1.14.0) with:
-- manifest.yaml       — metadata, language, lyric_tracks, notation-only "Vocals"
-                        arrangement, single full stem, cover
+- manifest.yaml       — metadata, language, lyric_tracks, vocal_tracks (duets),
+                        notation-only "Vocals" arrangement, single full stem, cover
 - lyrics.json         — flat syllable array with '-' join / '+' line-end suffixes
-- vocal_pitch.json    — per-syllable MIDI (pitched notes only)
+- vocal_pitch.json    — per-note MIDI (pitched notes only; melisma preserved)
 - notation_vocals.json— one-staff monophonic melody (4/4 grid on the chart's BPM)
 - stems/full.ogg      — ffmpeg-transcoded source audio
 - cover.jpg/.png      — copied cover art when the source has one
 
-Duets import player 1 only. Golden notes flatten to normal; freestyle/rap keep
-their lyrics but emit no vocal_pitch note.
+Duets import every player as a vocal_tracks[] voice (player 1 is primary and is
+mirrored to the singular lyrics/vocal_pitch keys for native karaoke). Melisma is
+preserved as its own pitch event. Golden notes flatten to normal; freestyle/rap
+keep their lyrics but emit no vocal_pitch note. See docs/vocal-tracks.md.
 """
 from __future__ import annotations
 
@@ -182,6 +184,77 @@ def build_vocal_pitch(lines: list[Line]) -> dict:
     return {"version": 1, "notes": notes}
 
 
+def build_voice_data(song: Song, lang: str | None) -> list[dict]:
+    """Per-voice bundle for every player present, primary voice first.
+
+    Each item carries both the on-disk data (``lyrics``, ``pitch``) and the
+    manifest fields (``id``, ``name``, ``role``, ``primary``, ``*_file``,
+    ``lyric_tracks``) for one singer. Player 1 is the primary voice and reuses the
+    singular file names (``lyrics.json`` / ``vocal_pitch.json``) the top-level
+    manifest keys also point at; other players get ``lyrics_p<n>.json`` /
+    ``vocal_pitch_p<n>.json``.
+
+    Lyrics come from the melisma-*merged* phrases (display); pitch comes from the
+    *raw* phrases, so a ``~`` melisma keeps its own pitch event — native karaoke
+    pairs pitch to syllables by onset ``t`` and simply ignores the extra notes
+    (see docs/vocal-tracks.md §4.2). Voices with no lyric content are dropped.
+    """
+    tag = lang or "und"
+    present = [p for p in sorted(song.players) if song.players[p]]
+    if not present:
+        return []
+    primary_p = 1 if 1 in present else present[0]
+    ordered = [primary_p] + [p for p in present if p != primary_p]
+
+    out: list[dict] = []
+    for p in ordered:
+        raw = song.players[p]
+        lyrics = build_lyrics(merge_melisma(raw))
+        if not lyrics:
+            continue
+        is_primary = p == primary_p
+        suffix = "" if is_primary else f"_p{p}"
+        vid = f"p{p}"
+        lyrics_file = f"lyrics{suffix}.json"
+        pitch_file = f"vocal_pitch{suffix}.json"
+        name = (song.headers.get(f"DUETSINGERP{p}", "").strip()
+                or song.headers.get(f"P{p}", "").strip() or None)
+        out.append({
+            "id": vid,
+            "player": p,
+            "name": name,
+            "role": "lead" if is_primary else "duet",
+            "primary": is_primary,
+            "lyrics_file": lyrics_file,
+            "pitch_file": pitch_file,
+            "lyrics": lyrics,
+            "pitch": build_vocal_pitch(raw),
+            "lyric_tracks": [{
+                "id": f"{vid}-{lang or 'original'}",
+                "file": lyrics_file,
+                "language": tag,
+                "kind": "original",
+            }],
+        })
+    return out
+
+
+def _vocal_track_entry(v: dict) -> dict:
+    """Manifest ``vocal_tracks[]`` entry from a :func:`build_voice_data` item."""
+    entry: dict = {"id": v["id"]}
+    if v["name"]:
+        entry["name"] = v["name"]
+    entry["role"] = v["role"]
+    if v["primary"]:
+        entry["primary"] = True
+    entry["stem"] = "full"
+    entry["lyrics"] = v["lyrics_file"]
+    entry["lyrics_source"] = "authored"
+    entry["lyric_tracks"] = v["lyric_tracks"]
+    entry["vocal_pitch"] = v["pitch_file"]
+    return entry
+
+
 def display_bpm(header_bpm: float) -> float:
     """Fold the quarter-beat header BPM into a displayable musical tempo (<= 180).
 
@@ -302,19 +375,20 @@ def convert(source: Path, out_path: Path, keep_dir: bool = False,
         log(f"  chart warning: {w}")
 
     title, artist = fallback_title_artist(chart, song)
-    if song.is_duet:
-        log("  duet chart: importing player 1 only (v1)")
+    lang = language_tag(song.headers)
+    voices = build_voice_data(song, lang)
+    primary = next((v for v in voices if v["primary"]), None)
+    if primary is None or not primary["lyrics"]:
+        raise ConvertError("chart produced no lyrics entries")
+    if len(voices) > 1:
+        log(f"  duet chart: importing {len(voices)} voices "
+            f"({', '.join(v['id'] for v in voices)})")
 
     audio = find_audio(song_dir, song.headers)
     if audio is None:
         raise ConvertError(f"no audio file for {song_dir.name}")
 
-    lines = merge_melisma(song.lines)
-    lyrics = build_lyrics(lines)
-    if not lyrics:
-        raise ConvertError("chart produced no lyrics entries")
-    vocal_pitch = build_vocal_pitch(lines)
-    notation = build_notation(song, lines)
+    notation = build_notation(song, merge_melisma(song.players[primary["player"]]))
 
     work = Path(tempfile.mkdtemp(prefix="usimport_")) / "pack"
     work.mkdir(parents=True)
@@ -322,12 +396,13 @@ def convert(source: Path, out_path: Path, keep_dir: bool = False,
         transcode_audio(audio, work / "stems" / "full.ogg")
         duration = probe_duration(work / "stems" / "full.ogg")
 
-        (work / "lyrics.json").write_text(
-            json.dumps(lyrics, ensure_ascii=False, separators=(",", ":")),
-            encoding="utf-8")
-        (work / "vocal_pitch.json").write_text(
-            json.dumps(vocal_pitch, ensure_ascii=False, separators=(",", ":")),
-            encoding="utf-8")
+        for v in voices:
+            (work / v["lyrics_file"]).write_text(
+                json.dumps(v["lyrics"], ensure_ascii=False, separators=(",", ":")),
+                encoding="utf-8")
+            (work / v["pitch_file"]).write_text(
+                json.dumps(v["pitch"], ensure_ascii=False, separators=(",", ":")),
+                encoding="utf-8")
         (work / "notation_vocals.json").write_text(
             json.dumps(notation, ensure_ascii=False, separators=(",", ":")),
             encoding="utf-8")
@@ -347,15 +422,22 @@ def convert(source: Path, out_path: Path, keep_dir: bool = False,
             "title": title,
             "artist": artist,
         }
+        album = song.headers.get("ALBUM", "").strip()
+        if album:
+            manifest["album"] = album
         year = song.headers.get("YEAR", "").strip()
         if year.isdigit():
             manifest["year"] = int(year)
         genre = song.headers.get("GENRE", "").strip()
         if genre:
             manifest["genres"] = [genre]
-        lang = language_tag(song.headers)
         if lang:
             manifest["language"] = lang
+        # #CREATOR (modern) / #AUTHOR (legacy) name the charter, not the artist.
+        charter = (song.headers.get("CREATOR", "").strip()
+                   or song.headers.get("AUTHOR", "").strip())
+        if charter:
+            manifest["authors"] = [{"name": charter, "role": "charter"}]
         manifest["duration"] = round(duration, 3)
         manifest["arrangements"] = [{
             "id": "vocals",
@@ -364,15 +446,12 @@ def convert(source: Path, out_path: Path, keep_dir: bool = False,
             "notation": "notation_vocals.json",
         }]
         manifest["stems"] = [{"id": "full", "file": "stems/full.ogg", "default": True}]
-        manifest["lyrics"] = "lyrics.json"
+        manifest["lyrics"] = primary["lyrics_file"]
         manifest["lyrics_source"] = "authored"
-        manifest["lyric_tracks"] = [{
-            "id": lang or "original",
-            "file": "lyrics.json",
-            "language": lang or "und",
-            "kind": "original",
-        }]
-        manifest["vocal_pitch"] = "vocal_pitch.json"
+        manifest["lyric_tracks"] = primary["lyric_tracks"]
+        manifest["vocal_pitch"] = primary["pitch_file"]
+        if len(voices) > 1:
+            manifest["vocal_tracks"] = [_vocal_track_entry(v) for v in voices]
         if cover_rel:
             manifest["cover"] = cover_rel
 

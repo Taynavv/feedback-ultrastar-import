@@ -10,6 +10,7 @@ from convert import (  # noqa: E402
     build_lyrics,
     build_notation,
     build_vocal_pitch,
+    build_voice_data,
     display_bpm,
     fallback_title_artist,
     find_audio,
@@ -32,6 +33,22 @@ CHART = """\
 : 24 4 0 next
 : 28 2 4 ~
 F 32 4 0  line
+E
+"""
+
+DUET = """\
+#TITLE:D
+#ARTIST:A
+#DUETSINGERP1:Alice
+#DUETSINGERP2:Bob
+#BPM:400
+#GAP:0
+P1
+: 0 4 0 Al
+: 4 4 2 ice
+P2
+: 8 4 4 Bob
+: 12 4 5 sing
 E
 """
 
@@ -74,10 +91,42 @@ def test_build_vocal_pitch_skips_unpitched():
     assert len(vp["notes"]) < len(build_lyrics(_lines()))
 
 
+def test_build_vocal_pitch_preserves_melisma_raw():
+    # On RAW (un-merged) phrases the '~' melisma keeps its own pitch event, so the
+    # per-note stream is one longer than the merged/flattened count. convert() feeds
+    # build_vocal_pitch the raw phrases for exactly this reason (docs §4.2).
+    raw = parse_text(CHART).lines
+    assert len(build_vocal_pitch(raw)["notes"]) == 5           # Hel, lo, world, next, ~
+    assert (len(build_vocal_pitch(raw)["notes"])
+            == len(build_vocal_pitch(_lines())["notes"]) + 1)
+
+
 def test_vocal_pitch_mirrors_lyrics_timing():
     lyr = build_lyrics(_lines())
     vp = build_vocal_pitch(_lines())
     assert [n["t"] for n in vp["notes"]] == [e["t"] for e in lyr[:4]]
+
+
+def test_build_voice_data_duet():
+    voices = build_voice_data(parse_text(DUET), "en")
+    assert [v["id"] for v in voices] == ["p1", "p2"]
+    assert voices[0]["primary"] and not voices[1]["primary"]
+    assert voices[0]["name"] == "Alice" and voices[1]["name"] == "Bob"
+    assert voices[0]["role"] == "lead" and voices[1]["role"] == "duet"
+    assert (voices[0]["lyrics_file"], voices[0]["pitch_file"]) == \
+        ("lyrics.json", "vocal_pitch.json")
+    assert (voices[1]["lyrics_file"], voices[1]["pitch_file"]) == \
+        ("lyrics_p2.json", "vocal_pitch_p2.json")
+    assert len(voices[1]["pitch"]["notes"]) == 2               # Bob, sing
+    assert voices[1]["lyric_tracks"][0]["kind"] == "original"
+    assert voices[1]["lyric_tracks"][0]["language"] == "en"
+
+
+def test_build_voice_data_solo_single_voice():
+    voices = build_voice_data(parse_text(CHART), "en")
+    assert len(voices) == 1
+    assert voices[0]["primary"] and voices[0]["id"] == "p1"
+    assert voices[0]["lyrics_file"] == "lyrics.json"
 
 
 def test_display_bpm_folds_into_range():
