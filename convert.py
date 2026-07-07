@@ -74,18 +74,27 @@ def find_tool(name: str) -> str:
 def pick_chart(source: Path) -> Path:
     """Resolve a song dir (or direct .txt path) to one chart file.
 
-    When a folder holds several charts (the corpus' duet '[MULTI]' variants),
-    prefer the plain solo chart.
+    When a folder holds several charts (commonly a solo chart plus a ``[MULTI]``
+    duet variant), prefer the one with the MOST voices, so a multi-voice duet is
+    not silently dropped in favor of a single-singer chart — the duet's player 1
+    still mirrors to the singular keys, so it's a strict superset. Ties fall back
+    to the plain (non-``[MULTI]``) chart for the cleanest single-voice default.
     """
     if source.is_file():
         return source
     charts = sorted(source.glob("*.txt"))
     if not charts:
         raise ConvertError(f"no .txt chart in {source}")
-    if len(charts) > 1:
-        solo = [c for c in charts if "[MULTI]" not in c.name.upper()]
-        return solo[0] if solo else charts[0]
-    return charts[0]
+    if len(charts) == 1:
+        return charts[0]
+
+    def voice_count(c: Path) -> int:
+        try:
+            return sum(1 for lines in parse_file(c).players.values() if lines)
+        except Exception:
+            return 0
+
+    return max(charts, key=lambda c: (voice_count(c), "[MULTI]" not in c.name.upper()))
 
 
 # Any container ffmpeg can pull a stem from. Dedicated audio formats rank before

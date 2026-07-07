@@ -24,6 +24,10 @@
             <input type="text" id="us-dir" spellcheck="false"
                 placeholder="e.g. D:\UltraStar\songs"
                 class="flex-1 bg-dark-600 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 outline-none focus:border-accent/50">
+            <button onclick="usPickFolder()" id="us-browse-btn"
+                class="hidden bg-dark-600 border border-gray-700 hover:border-accent/50 px-4 py-2 rounded-lg text-sm text-gray-300 hover:text-white transition whitespace-nowrap">
+                Browse…
+            </button>
             <button onclick="usScan()" id="us-scan-btn"
                 class="bg-accent hover:bg-accent-light px-6 py-2 rounded-xl text-sm font-semibold text-white transition">
                 Scan

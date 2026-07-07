@@ -44,9 +44,28 @@ setTimeout(() => {
     usLoadBackups();
     const t = $('us-merge-toggle');
     if (t) t.addEventListener('change', () => { if (!_importing) usRenderList(); });
+    // Native folder picker: only inside the FeedBack desktop app (the plain web
+    // app can't resolve a real folder path), mirroring core's DLC-folder picker.
+    if (window.feedBackDesktop && typeof window.feedBackDesktop.pickDirectory === 'function') {
+        $('us-browse-btn')?.classList.remove('hidden');
+    }
 }, 100);
 
 // ── Scan ──────────────────────────────────────────────────────────────────
+
+// Open the OS folder picker via the desktop bridge, then scan the chosen folder
+// (picking one is a clear intent to scan it). No-op on the plain web app — the
+// Browse button is hidden there.
+async function usPickFolder() {
+    if (!window.feedBackDesktop || typeof window.feedBackDesktop.pickDirectory !== 'function') return;
+    let path;
+    try {
+        path = await window.feedBackDesktop.pickDirectory();
+    } catch (_) { return; }
+    if (!path) return;   // dialog cancelled
+    $('us-dir').value = path;
+    usScan();
+}
 
 async function usScan() {
     if (_importing) return;   // a rescan mid-import would orphan the live progress state
@@ -349,6 +368,7 @@ async function usBakDeleteAll() {
 
 // Expose for onclick handlers in screen.html
 window.usScan = usScan;
+window.usPickFolder = usPickFolder;
 window.usImport = usImport;
 window.usSelectNew = usSelectNew;
 window.usSelectAll = usSelectAll;

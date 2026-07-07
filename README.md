@@ -56,10 +56,45 @@ Restart FeedBack.
 **From source:** copy (or junction/symlink) this repository into the user-plugins
 directory and restart FeedBack.
 
-"Import UltraStar" appears in the navigation. Point it at your songs folder, Scan,
-review the list (songs with a library match show **merge →**), and Import. The
-"merge into existing songs" toggle controls whether matches merge or import
-standalone.
+"Import UltraStar" then appears under **Plugins → Tools**. See **[Using it](#using-it)**
+below for the walkthrough.
+
+## Using it
+
+Import UltraStar lives under **Plugins → Tools**.
+
+![Import UltraStar in Plugins → Tools](docs/images/01-plugins-tools.png)
+
+**1. Point it at your songs.** Type the path to your UltraStar `songs` folder — or
+click **Browse…** to pick it — then hit **Scan**. Each song is a subfolder with a
+`.txt` chart plus its audio; nothing is uploaded, everything converts locally.
+
+![Scanning an UltraStar songs folder](docs/images/02-scan-folder.png)
+
+**2. Review the scan.** Each song shows a status:
+
+- **new** — not in your FeedBack library yet.
+- **imported** — already imported here.
+- **merge →** — the recording is already in your library (say, a guitar chart) but has
+  no vocals; importing grafts the vocals *into that existing pak* instead of making a
+  duplicate. The **Merge vocals into existing library songs…** toggle controls this.
+
+Duet charts are tagged **(duet)** — every singer is imported as its own voice.
+
+![The scanned song list with new / imported / merge statuses](docs/images/03-song-list.png)
+
+**3. Import.** Tick the songs you want (or **Select new**) and click **Import selected**.
+Progress streams per song; when it finishes they're in your library under the **Vocals**
+arrangement.
+
+![Import progress and completion](docs/images/04-import-complete.png)
+
+**4. Undo a merge if you need to.** The first time vocals are merged into an existing
+pak, the plugin saves a backup — the pak exactly as it was before. **Restore** undoes
+the merge; **Delete** keeps the merge and drops the backup. Backups never expire, so
+cleanup is always your call.
+
+![Merge backups with Restore and Delete](docs/images/05-merge-backups.png)
 
 ## CLI (no app needed)
 

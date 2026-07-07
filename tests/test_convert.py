@@ -195,9 +195,18 @@ def test_fallback_title_artist():
     assert artist == "Some Artist"
 
 
-def test_pick_chart_prefers_solo(tmp_path):
-    (tmp_path / "Song [MULTI].txt").write_text("x")
-    (tmp_path / "Song.txt").write_text("x")
+def test_pick_chart_prefers_duet_variant(tmp_path):
+    # A solo chart + a '[MULTI]' duet variant: import the richer (duet) chart so
+    # multi-voice isn't dropped in favor of a single-singer one.
+    (tmp_path / "Song.txt").write_text(CHART)
+    (tmp_path / "Song [MULTI].txt").write_text(DUET)
+    assert pick_chart(tmp_path).name == "Song [MULTI].txt"
+
+
+def test_pick_chart_tie_prefers_plain(tmp_path):
+    # Two single-voice charts (same voice count): fall back to the plain name.
+    (tmp_path / "Song [MULTI].txt").write_text(CHART)
+    (tmp_path / "Song.txt").write_text(CHART)
     assert pick_chart(tmp_path).name == "Song.txt"
 
 
